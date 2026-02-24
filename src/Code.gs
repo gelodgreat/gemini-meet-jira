@@ -85,12 +85,14 @@ function processMeetingNotes(fileId) {
       (parsed.summary ? "yes" : "no") +
       ", decisions: " +
       parsed.decisions.length +
-      ", nextSteps: " +
+      ", nextSteps (with 'create task'): " +
       parsed.nextSteps.length,
   );
 
   if (parsed.nextSteps.length === 0) {
-    Logger.log("No action items found — nothing to create in Jira.");
+    Logger.log(
+      "No action items marked 'create task' found — nothing to create in Jira.",
+    );
     markAsProcessed(fileId);
     return { created: [], errors: [] };
   }

@@ -205,18 +205,24 @@ function isParagraphAllBold(paragraph) {
 /**
  * Parse the Next Steps section lines into structured action items.
  *
+ * Only lines that explicitly contain the phrase "create task" (case-insensitive)
+ * are converted into Jira tickets. The phrase is stripped from the final title
+ * so tickets stay clean.
+ *
  * Supported action item formats (Gemini varies):
- *   • Review the proposal (John Smith)
- *   • Review the proposal - John Smith
- *   • Review the proposal by John Smith
- *   • Review the proposal — Owner: John Smith
- *   • Review the proposal
+ *   • Create task: Review the proposal (John Smith)
+ *   • Review the proposal - create task (John Smith)
+ *   • Create task — Review the proposal by John Smith
+ *   • Create task for reviewing the proposal — Owner: John Smith
  *
  * @param {string[]} lines - Lines from the Next Steps section
  * @returns {Array<{title: string, assignee: string|null, details: string}>}
  */
 function parseNextSteps(lines) {
   if (!lines || lines.length === 0) return [];
+
+  // Only action items explicitly mentioning "create task" become Jira tickets.
+  var CREATE_TASK_PATTERN = /create\s+task/i;
 
   var items = [];
   var currentItem = null;
@@ -236,7 +242,24 @@ function parseNextSteps(lines) {
         .replace(/^[•\-\*]\s*/, "")
         .replace(/^\d+\.\s*/, "")
         .trim();
-      currentItem = parseActionItemText(cleanText);
+
+      // Skip lines that don't explicitly request a Jira task
+      if (!CREATE_TASK_PATTERN.test(cleanText)) {
+        currentItem = null;
+        continue;
+      }
+
+      // Remove "create task" (and optional surrounding punctuation) from the
+      // title so the Jira summary is clean and human-readable.
+      var taskText = cleanText
+        // Leading: "Create task: …" or "Create task — …" or "Create task …"
+        .replace(/^create\s+task\s*[:\-–—]?\s*/i, "")
+        // Trailing: "… - create task" or "… , create task"
+        .replace(/\s*[,\-–—]?\s*create\s+task\s*$/i, "")
+        .trim();
+
+      // Fall back to the original text if stripping leaves nothing useful
+      currentItem = parseActionItemText(taskText || cleanText);
     } else if (currentItem) {
       // Indented continuation lines become the item's details field
       currentItem.details = currentItem.details
